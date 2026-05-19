@@ -452,8 +452,8 @@ def submit_quiz(skill_id: int, result: QuizResult, db: Session = Depends(get_db)
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
         
-    # Passing score is 80% (12/15)
-    passing_score = int(result.total * 0.8)
+    # Passing score is 70% (11/15)
+    passing_score = int(result.total * 0.7)
     
     if result.score >= passing_score:
         skill.is_verified = True

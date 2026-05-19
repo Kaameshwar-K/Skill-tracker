@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Skill Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0f172a',
+                        darker: '#020617',
+                        card: '#1e293b',
+                        primary: '#6366f1',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Smooth transitions for view swapping */
+        .view-section { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
+        .view-section.active { display: block; opacity: 1; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="bg-darker text-gray-200 min-h-screen flex flex-col antialiased">
+
+    <nav class="bg-card border-b border-gray-800 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                    <div class="bg-primary p-2 rounded-lg text-white">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight text-white">Skill Tracker</span>
+                </div>
+                <div id="navUserArea" class="hidden flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-sm" id="userInitial">U</div>
+                        <span id="navUsername" class="text-sm font-medium">Username</span>
+                        <span id="navRoleBadge" class="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">Role</span>
+                    </div>
+                    <button onclick="logout()" class="text-gray-400 hover:text-white transition px-3 py-1.5 rounded-md hover:bg-gray-800 text-sm">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <main class="flex-grow w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- Login View -->
+        <div id="loginView" class="view-section active max-w-md mx-auto mt-10">
+            <div class="bg-card p-8 rounded-2xl shadow-xl border border-gray-800">
+                <h2 class="text-2xl font-bold text-white mb-2 text-center">Welcome Back</h2>
+                <p class="text-gray-400 text-sm mb-6 text-center">Enter your credentials to access your account.</p>
+                
+                <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Username</label>
+                        <div class="relative">
+                            <i class="fas fa-user absolute left-3 top-3 text-gray-500"></i>
+                            <input type="text" id="loginUsername" required class="w-full bg-dark border border-gray-700 rounded-lg py-2 pl-10 pr-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition" placeholder="johndoe">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                        <div class="relative">
+                            <i class="fas fa-lock absolute left-3 top-3 text-gray-500"></i>
+                            <input type="password" id="loginPassword" required class="w-full bg-dark border border-gray-700 rounded-lg py-2 pl-10 pr-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition" placeholder="••••••••">
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-primary hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition shadow-lg shadow-primary/20">Sign In</button>
+                </form>
+                <div class="mt-6 text-center text-sm text-gray-400">
+                    Don't have an account? <a href="#" onclick="switchView('registerView')" class="text-primary hover:text-indigo-400 font-medium">Create one</a>
+                </div>
+            </div>
+            
+            <div class="mt-6 bg-gray-800/50 p-4 rounded-xl border border-gray-700 text-sm text-gray-300">
+                <p class="font-semibold mb-2"><i class="fas fa-info-circle text-primary"></i> Demo Info:</p>
+                <p>Register a new account or use roles carefully.</p>
+                <p>The first registered user is just a 'student'. Register an 'admin' role specifically to test admin features.</p>
+            </div>
+        </div>
+
+        <!-- Register View -->
+        <div id="registerView" class="view-section max-w-md mx-auto mt-10">
+            <div class="bg-card p-8 rounded-2xl shadow-xl border border-gray-800">
+                <h2 class="text-2xl font-bold text-white mb-2 text-center">Create Account</h2>
+                <p class="text-gray-400 text-sm mb-6 text-center">Join to start tracking your skills.</p>
+                
+                <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Username</label>
+                        <input type="text" id="regUsername" required class="w-full bg-dark border border-gray-700 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Email</label>
+                        <input type="email" id="regEmail" required class="w-full bg-dark border border-gray-700 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                        <input type="password" id="regPassword" required class="w-full bg-dark border border-gray-700 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Role (For Demo Purposes)</label>
+                        <select id="regRole" class="w-full bg-dark border border-gray-700 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition">
+                            <option value="student">Student</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-primary hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition shadow-lg shadow-primary/20">Sign Up</button>
+                </form>
+                <div class="mt-6 text-center text-sm text-gray-400">
+                    Already have an account? <a href="#" onclick="switchView('loginView')" class="text-primary hover:text-indigo-400 font-medium">Log in</a>
+                </div>
+            </div>
+        </div>
+
+        <div id="studentDashboard" class="view-section">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-white">My Skills</h1>
+                    <p class="text-gray-400 mt-1">Track and manage your professional growth.</p>
+                </div>
+                <button onclick="openSkillModal()" class="bg-primary hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-lg shadow-primary/20 flex items-center gap-2">
+                    <i class="fas fa-plus"></i> Add New Skill
+                </button>
+            </div>
+
+            <!-- Skills Grid -->
+            <div id="skillsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Skill Cards will be injected here via JS -->
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptySkills" class="hidden text-center py-20 bg-card rounded-2xl border border-gray-800">
+                <div class="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-500 text-3xl">
+                    <i class="fas fa-ghost"></i>
+                </div>
+                <h3 class="text-xl font-medium text-white mb-2">No skills tracked yet</h3>
+                <p class="text-gray-400 max-w-sm mx-auto">Start building your profile by adding your first skill today.</p>
+            </div>
+        </div>
+
+        <div id="adminDashboard" class="view-section">
+            <h1 class="text-3xl font-bold text-white mb-2">Admin Control Panel</h1>
+            <p class="text-gray-400 mb-8">Manage users, oversee skills, and view platform analytics.</p>
+
+            <!-- Analytics Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center gap-4">
+                    <div class="bg-blue-500/20 p-4 rounded-xl text-blue-400 text-2xl"><i class="fas fa-users"></i></div>
+                    <div>
+                        <p class="text-gray-400 text-sm font-medium">Total Users</p>
+                        <h3 class="text-3xl font-bold text-white" id="statTotalUsers">-</h3>
+                    </div>
+                </div>
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center gap-4">
+                    <div class="bg-purple-500/20 p-4 rounded-xl text-purple-400 text-2xl"><i class="fas fa-layer-group"></i></div>
+                    <div>
+                        <p class="text-gray-400 text-sm font-medium">Total Skills Logged</p>
+                        <h3 class="text-3xl font-bold text-white" id="statTotalSkills">-</h3>
+                    </div>
+                </div>
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center gap-4">
+                    <div class="bg-emerald-500/20 p-4 rounded-xl text-emerald-400 text-2xl"><i class="fas fa-fire"></i></div>
+                    <div>
+                        <p class="text-gray-400 text-sm font-medium">Top Skill</p>
+                        <h3 class="text-xl font-bold text-white truncate w-32" id="statTopSkill">-</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Tabs -->
+            <div class="flex border-b border-gray-800 mb-6">
+                <button onclick="switchAdminTab('usersTab')" id="btnUsersTab" class="admin-tab px-6 py-3 border-b-2 border-primary text-primary font-medium transition">User Management</button>
+                <button onclick="switchAdminTab('skillsTab')" id="btnSkillsTab" class="admin-tab px-6 py-3 border-b-2 border-transparent text-gray-400 hover:text-gray-300 transition">Global Skills</button>
+            </div>
+
+            <!-- Users Table -->
+            <div id="usersTab" class="admin-content active bg-card rounded-2xl border border-gray-800 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-800/50 border-b border-gray-800">
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Email</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Role</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody" class="divide-y divide-gray-800">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Skills Table -->
+            <div id="skillsTab" class="admin-content hidden bg-card rounded-2xl border border-gray-800 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-800/50 border-b border-gray-800">
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Skill Name</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">Level</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider">User ID</th>
+                                <th class="py-4 px-6 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminSkillsTableBody" class="divide-y divide-gray-800">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Skill Modal -->
+    <div id="skillModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[100] opacity-0 transition-opacity">
+        <div class="bg-card p-6 sm:p-8 rounded-2xl shadow-2xl border border-gray-700 w-full max-w-md transform scale-95 transition-transform" id="skillModalContent">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white" id="skillModalTitle">Add New Skill</h3>
+                <button onclick="closeSkillModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form id="skillForm" onsubmit="saveSkill(event)" class="space-y-5">
+                <input type="hidden" id="skillId">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Skill Name</label>
+                    <input type="text" id="skillName" required class="w-full bg-dark border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="e.g. Python, React, Data Analysis">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Proficiency Level</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="skillLevel" value="Beginner" checked class="peer sr-only">
+                            <div class="text-center py-2 px-1 rounded-lg border border-gray-600 peer-checked:border-primary peer-checked:bg-primary/20 text-gray-400 peer-checked:text-primary font-medium text-sm transition">Beginner</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="skillLevel" value="Intermediate" class="peer sr-only">
+                            <div class="text-center py-2 px-1 rounded-lg border border-gray-600 peer-checked:border-primary peer-checked:bg-primary/20 text-gray-400 peer-checked:text-primary font-medium text-sm transition">Intermediate</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="skillLevel" value="Advanced" class="peer sr-only">
+                            <div class="text-center py-2 px-1 rounded-lg border border-gray-600 peer-checked:border-primary peer-checked:bg-primary/20 text-gray-400 peer-checked:text-primary font-medium text-sm transition">Advanced</div>
+                        </label>
+                    </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeSkillModal()" class="px-4 py-2 rounded-lg text-gray-400 hover:text-white font-medium transition">Cancel</button>
+                    <button type="submit" class="bg-primary hover:bg-indigo-500 text-white px-5 py-2 rounded-lg font-medium transition shadow-lg">Save Skill</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // API Base configuration
+        const API_URL = 'http://localhost:8000/api';
+        
+        // Application State
+        let state = {
+            token: localStorage.getItem('token') || null,
+            role: localStorage.getItem('role') || null,
+            username: localStorage.getItem('username') || null,
+            mySkills: [],
+            adminUsers: [],
+            adminSkills: []
+        };
+
+        // UI Helper: Toast Notifications
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'border-green-500 bg-green-500/10 text-green-400',
+                error: 'border-red-500 bg-red-500/10 text-red-400',
+                info: 'border-blue-500 bg-blue-500/10 text-blue-400'
+            };
+            
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                info: 'fa-info-circle'
+            };
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg transform transition-all duration-300 translate-y-10 opacity-0 ${colors[type]}`;
+            toast.innerHTML = `<i class="fas ${icons[type]} text-lg"></i><span class="font-medium text-sm">${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            }, 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            if (state.token) {
+                headers['Authorization'] = `Bearer ${state.token}`;
+            }
+
+            const options = { method, headers };
+            
+            // Special handling for form-encoded login
+            if (endpoint === '/login' && method === 'POST') {
+                delete headers['Content-Type']; // Let browser set form boundary or we set urlencoded
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                options.body = new URLSearchParams(body).toString();
+            } else if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            try {
+                const response = await fetch(`${API_URL}${endpoint}`, options);
+                
+                // Handle unauthorized (expired token etc)
+                if (response.status === 401 && endpoint !== '/login') {
+                    logout(false);
+                    showToast('Session expired. Please login again.', 'error');
+                    throw new Error('Unauthorized');
+                }
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'An error occurred');
+                }
+                
+                return data;
+            } catch (error) {
+                showToast(error.message, 'error');
+                throw error;
+            }
+        }
+
+        function switchView(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.getElementById(viewId).classList.add('active');
+        }
+
+        function checkAuthState() {
+            const navUserArea = document.getElementById('navUserArea');
+            
+            if (state.token) {
+                // Logged in
+                navUserArea.classList.remove('hidden');
+                document.getElementById('navUsername').textContent = state.username;
+                document.getElementById('navRoleBadge').textContent = state.role;
+                document.getElementById('userInitial').textContent = state.username ? state.username.charAt(0).toUpperCase() : 'U';
+                
+                if (state.role === 'admin') {
+                    document.getElementById('navRoleBadge').className = "text-xs px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30";
+                    switchView('adminDashboard');
+                    loadAdminData();
+                } else {
+                    document.getElementById('navRoleBadge').className = "text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30";
+                    switchView('studentDashboard');
+                    loadMySkills();
+                }
+            } else {
+                // Logged out
+                navUserArea.classList.add('hidden');
+                switchView('loginView');
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const data = await apiCall('/login', 'POST', { username, password });
+                state.token = data.access_token;
+                state.role = data.role;
+                state.username = username;
+                
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('role', data.role);
+                localStorage.setItem('username', username);
+                
+                document.getElementById('loginForm').reset();
+                showToast('Successfully logged in');
+                checkAuthState();
+            } catch (error) {
+                // Error handled in apiCall
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const role = document.getElementById('regRole').value;
+            
+            try {
+                await apiCall('/register', 'POST', { username, email, password, role });
+                showToast('Registration successful! Please log in.');
+                switchView('loginView');
+                document.getElementById('registerForm').reset();
+            } catch (error) {
+                // Error handled in apiCall
+            }
+        }
+
+        function logout(showMsg = true) {
+            state.token = null;
+            state.role = null;
+            state.username = null;
+            localStorage.clear();
+            if(showMsg) showToast('Logged out successfully', 'info');
+            checkAuthState();
+        }
+
+        async function loadMySkills() {
+            try {
+                const skills = await apiCall('/skills');
+                state.mySkills = skills;
+                renderSkills();
+            } catch (error) {
+                console.error("Failed to load skills", error);
+            }
+        }
+
+        function renderSkills() {
+            const container = document.getElementById('skillsContainer');
+            const emptyState = document.getElementById('emptySkills');
+            
+            container.innerHTML = '';
+            
+            if (state.mySkills.length === 0) {
+                emptyState.classList.remove('hidden');
+                container.classList.add('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            container.classList.remove('hidden');
+
+            const levelConfig = {
+                'Beginner': { width: '33%', color: 'bg-blue-500', icon: 'fa-seedling' },
+                'Intermediate': { width: '66%', color: 'bg-yellow-500', icon: 'fa-leaf' },
+                'Advanced': { width: '100%', color: 'bg-emerald-500', icon: 'fa-tree' }
+            };
+
+            state.mySkills.forEach(skill => {
+                const config = levelConfig[skill.skill_level];
+                
+                const card = document.createElement('div');
+                card.className = "bg-card rounded-2xl border border-gray-800 p-6 hover:border-gray-600 transition shadow-lg group relative overflow-hidden";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-primary transition">
+                                <i class="fas ${config.icon} text-lg"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-white capitalize">${skill.skill_name}</h3>
+                                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">${skill.skill_level}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="editSkill(${skill.id})" class="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 flex items-center justify-center transition"><i class="fas fa-pen text-sm"></i></button>
+                            <button onclick="deleteSkill(${skill.id})" class="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition"><i class="fas fa-trash text-sm"></i></button>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-800 rounded-full h-1.5 mb-1 relative z-10">
+                        <div class="${config.color} h-1.5 rounded-full transition-all duration-1000" style="width: 0%" data-target-width="${config.width}"></div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            // Animate progress bars
+            setTimeout(() => {
+                document.querySelectorAll('[data-target-width]').forEach(el => {
+                    el.style.width = el.getAttribute('data-target-width');
+                });
+            }, 100);
+        }
+
+        function openSkillModal(skillId = null) {
+            const modal = document.getElementById('skillModal');
+            const content = document.getElementById('skillModalContent');
+            const form = document.getElementById('skillForm');
+            
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            // trigger reflow
+            void modal.offsetWidth;
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+
+            if (skillId) {
+                document.getElementById('skillModalTitle').textContent = 'Edit Skill';
+                const skill = state.mySkills.find(s => s.id === skillId);
+                document.getElementById('skillId').value = skill.id;
+                document.getElementById('skillName').value = skill.skill_name;
+                document.querySelector(`input[name="skillLevel"][value="${skill.skill_level}"]`).checked = true;
+            } else {
+                document.getElementById('skillModalTitle').textContent = 'Add New Skill';
+                form.reset();
+                document.getElementById('skillId').value = '';
+            }
+        }
+
+        function closeSkillModal() {
+            const modal = document.getElementById('skillModal');
+            const content = document.getElementById('skillModalContent');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        async function saveSkill(e) {
+            e.preventDefault();
+            const id = document.getElementById('skillId').value;
+            const skill_name = document.getElementById('skillName').value;
+            const skill_level = document.querySelector('input[name="skillLevel"]:checked').value;
+            
+            const payload = { skill_name, skill_level };
+
+            try {
+                if (id) {
+                    await apiCall(`/skills/${id}`, 'PUT', payload);
+                    showToast('Skill updated successfully');
+                } else {
+                    await apiCall('/skills', 'POST', payload);
+                    showToast('Skill added successfully');
+                }
+                closeSkillModal();
+                loadMySkills();
+            } catch (error) {
+                // Handled
+            }
+        }
+
+        function editSkill(id) {
+            openSkillModal(id);
+        }
+
+        async function deleteSkill(id) {
+            if(confirm("Are you sure you want to delete this skill?")) {
+                try {
+                    await apiCall(`/skills/${id}`, 'DELETE');
+                    showToast('Skill deleted');
+                    loadMySkills();
+                } catch(error) {}
+            }
+        }
+
+        function switchAdminTab(tabId) {
+            document.querySelectorAll('.admin-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            document.querySelectorAll('.admin-tab').forEach(el => {
+                el.classList.remove('border-primary', 'text-primary');
+                el.classList.add('border-transparent', 'text-gray-400');
+            });
+            
+            const activeBtn = tabId === 'usersTab' ? document.getElementById('btnUsersTab') : document.getElementById('btnSkillsTab');
+            activeBtn.classList.remove('border-transparent', 'text-gray-400');
+            activeBtn.classList.add('border-primary', 'text-primary');
+        }
+
+        async function loadAdminData() {
+            try {
+                const [stats, users, skills] = await Promise.all([
+                    apiCall('/admin/stats'),
+                    apiCall('/admin/users'),
+                    apiCall('/admin/skills')
+                ]);
+                
+                // Update stats
+                document.getElementById('statTotalUsers').textContent = stats.total_users;
+                document.getElementById('statTotalSkills').textContent = stats.total_skills;
+                document.getElementById('statTopSkill').textContent = stats.most_common_skill;
+                
+                // Update Tables
+                renderAdminUsers(users);
+                renderAdminSkills(skills);
+                
+            } catch (error) {
+                console.error("Admin load error", error);
+            }
+        }
+
+        function renderAdminUsers(users) {
+            const tbody = document.getElementById('adminUsersTableBody');
+            tbody.innerHTML = '';
+            users.forEach(user => {
+                const roleColor = user.role === 'admin' ? 'text-purple-400 bg-purple-400/10' : 'text-indigo-400 bg-indigo-400/10';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-800/30 transition">
+                        <td class="py-3 px-6 text-sm text-gray-400">#${user.id}</td>
+                        <td class="py-3 px-6 text-sm font-medium text-white">${user.username}</td>
+                        <td class="py-3 px-6 text-sm text-gray-400">${user.email}</td>
+                        <td class="py-3 px-6 text-sm">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-medium ${roleColor}">${user.role}</span>
+                        </td>
+                        <td class="py-3 px-6 text-sm text-right">
+                            <button onclick="adminDeleteUser(${user.id})" class="text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-3 py-1.5 rounded-md transition text-xs font-medium">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderAdminSkills(skills) {
+            const tbody = document.getElementById('adminSkillsTableBody');
+            tbody.innerHTML = '';
+            skills.forEach(skill => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-800/30 transition">
+                        <td class="py-3 px-6 text-sm text-gray-400">#${skill.id}</td>
+                        <td class="py-3 px-6 text-sm font-medium text-white">${skill.skill_name}</td>
+                        <td class="py-3 px-6 text-sm text-gray-400">${skill.skill_level}</td>
+                        <td class="py-3 px-6 text-sm text-gray-400">User #${skill.user_id}</td>
+                        <td class="py-3 px-6 text-sm text-right">
+                            <button onclick="adminDeleteSkill(${skill.id})" class="text-red-400 hover:text-red-300 bg-red-400/10 hover:bg-red-400/20 px-3 py-1.5 rounded-md transition text-xs font-medium">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function adminDeleteUser(id) {
+            if(confirm("DANGER: Delete this user and all their skills?")) {
+                try {
+                    await apiCall(`/admin/users/${id}`, 'DELETE');
+                    showToast('User deleted successfully');
+                    loadAdminData();
+                } catch(e) {}
+            }
+        }
+
+        async function adminDeleteSkill(id) {
+            if(confirm("Delete this skill globally?")) {
+                try {
+                    await apiCall(`/admin/skills/${id}`, 'DELETE');
+                    showToast('Skill deleted globally');
+                    loadAdminData();
+                } catch(e) {}
+            }
+        }
+
+        // Initialize application on page load
+        window.onload = checkAuthState;
+    </script>
+</body>
+</html>

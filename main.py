@@ -81,7 +81,7 @@ class UserResponse(BaseModel):
     email: str
     role: RoleEnum
     class Config:
-        orm_mode = True
+        from_attributes = True # Updated for Pydantic V2
 
 class SkillBase(BaseModel):
     skill_name: str
@@ -94,7 +94,7 @@ class SkillResponse(SkillBase):
     id: int
     user_id: int
     class Config:
-        orm_mode = True
+        from_attributes = True # Updated for Pydantic V2
 
 class Token(BaseModel):
     access_token: str

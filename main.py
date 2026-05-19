@@ -415,7 +415,7 @@ def generate_quiz(skill_id: int, db: Session = Depends(get_db), current_user: Us
         raise HTTPException(status_code=404, detail="Skill not found")
 
     genai.configure(api_key=gemini_api_key)
-    model = genai.GenerativeModel('gemini-3.5-flash')
+    model = genai.GenerativeModel('gemini-3.1-flash-lite')
 
     prompt = f"""
     Generate exactly a 15-question multiple-choice quiz to verify the skills of a professional with '{skill.skill_level.value}' expertise in '{skill.skill_name}'.

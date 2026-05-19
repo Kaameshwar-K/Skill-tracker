@@ -17,11 +17,10 @@ import uvicorn
 # ==========================================
 # DATABASE CONFIGURATION
 # ==========================================
-# NOTE: Replace with your MySQL URL. Example: "mysql+pymysql://user:password@localhost/skill_tracker"
-# Using SQLite fallback by default so the app runs out-of-the-box for testing.
+# This reads from Render's Environment Variables. If not found, defaults to local SQLite.
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./skill_tracker.db")
 
-# SQLite requires check_same_thread=False, MySQL does not.
+# SQLite needs a special argument, MySQL does not. This handles both automatically!
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 else:
@@ -50,7 +49,6 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(Enum(RoleEnum), default=RoleEnum.student, nullable=False)
     
-    # Relationship: One user has many skills
     skills = relationship("Skill", back_populates="owner", cascade="all, delete-orphan")
 
 class Skill(Base):
@@ -60,10 +58,8 @@ class Skill(Base):
     skill_level = Column(Enum(SkillLevelEnum), default=SkillLevelEnum.beginner, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
-    # Relationship mapping back to user
     owner = relationship("User", back_populates="skills")
 
-# Create tables in the database
 Base.metadata.create_all(bind=engine)
 
 # ==========================================
@@ -73,7 +69,7 @@ class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
-    role: Optional[RoleEnum] = RoleEnum.student
+    # SECURITY FIX: 'role' has been removed so hackers cannot register as admin
 
 class UserResponse(BaseModel):
     id: int
@@ -81,7 +77,7 @@ class UserResponse(BaseModel):
     email: str
     role: RoleEnum
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class SkillBase(BaseModel):
     skill_name: str
@@ -94,7 +90,7 @@ class SkillResponse(SkillBase):
     id: int
     user_id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -107,11 +103,12 @@ class TokenData(BaseModel):
 # ==========================================
 # AUTHENTICATION & SECURITY
 # ==========================================
-SECRET_KEY = "your-super-secret-key-change-this-in-production"
+# SECURITY FIX: Uses environment variable for secret key.
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key-for-local-testing")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-# Use pbkdf2_sha256 to avoid bcrypt backend compatibility issues in this environment.
+# SECURITY FIX: Using pbkdf2_sha256 instead of bcrypt for better cross-platform compatibility
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
@@ -162,10 +159,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 def get_current_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != RoleEnum.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
     return current_user
 
 # ==========================================
@@ -173,11 +167,13 @@ def get_current_admin(current_user: User = Depends(get_current_user)):
 # ==========================================
 app = FastAPI(title="Student Skill Tracker API")
 
-# Configure CORS
+# SECURITY FIX: Dynamically read allowed frontend URL from Render environment variables
+frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for testing. In prod, specify frontend URL.
-    allow_credentials=False, # CHANGED: Browsers block True when origins is "*"
+    allow_origins=[frontend_url, "http://localhost:5500", "http://localhost:3000"], 
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -193,11 +189,12 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     hashed_password = get_password_hash(user.password)
+    # SECURITY FIX: Hardcode role to student
     new_user = User(
         username=user.username,
         email=user.email,
         hashed_password=hashed_password,
-        role=user.role
+        role=RoleEnum.student 
     )
     db.add(new_user)
     db.commit()
@@ -213,9 +210,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return {"access_token": access_token, "token_type": "bearer", "role": user.role}
 
@@ -226,9 +222,7 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 # --- STUDENT ROUTES ---
 @app.get("/api/skills", response_model=List[SkillResponse])
 def get_my_skills(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Students can only see their own skills
-    skills = db.query(Skill).filter(Skill.user_id == current_user.id).all()
-    return skills
+    return db.query(Skill).filter(Skill.user_id == current_user.id).all()
 
 @app.post("/api/skills", response_model=SkillResponse)
 def create_skill(skill: SkillCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -243,7 +237,6 @@ def update_skill(skill_id: int, skill_update: SkillCreate, db: Session = Depends
     db_skill = db.query(Skill).filter(Skill.id == skill_id).first()
     if not db_skill:
         raise HTTPException(status_code=404, detail="Skill not found")
-    # SECURITY: Ensure ownership
     if db_skill.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to update this skill")
     
@@ -258,13 +251,11 @@ def delete_skill(skill_id: int, db: Session = Depends(get_db), current_user: Use
     db_skill = db.query(Skill).filter(Skill.id == skill_id).first()
     if not db_skill:
         raise HTTPException(status_code=404, detail="Skill not found")
-    # SECURITY: Ensure ownership
     if db_skill.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this skill")
-    
     db.delete(db_skill)
     db.commit()
-    return {"message": "Skill deleted successfully"}
+    return {"message": "Skill deleted"}
 
 # --- ADMIN ROUTES ---
 @app.get("/api/admin/users", response_model=List[UserResponse])
@@ -282,7 +273,7 @@ def delete_user_by_admin(user_id: int, db: Session = Depends(get_db), admin: Use
         raise HTTPException(status_code=404, detail="User not found")
     db.delete(user)
     db.commit()
-    return {"message": "User deleted successfully"}
+    return {"message": "User deleted"}
 
 @app.delete("/api/admin/skills/{skill_id}")
 def delete_skill_by_admin(skill_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
@@ -291,29 +282,18 @@ def delete_skill_by_admin(skill_id: int, db: Session = Depends(get_db), admin: U
         raise HTTPException(status_code=404, detail="Skill not found")
     db.delete(skill)
     db.commit()
-    return {"message": "Skill deleted successfully"}
+    return {"message": "Skill deleted"}
 
 @app.get("/api/admin/stats")
 def get_admin_stats(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     total_users = db.query(User).count()
     total_skills = db.query(Skill).count()
-    
-    # Logic for most common skill (simple aggregation simulation)
-    # In production, use SQLAlchemy group_by
     skills = db.query(Skill).all()
     skill_counts = {}
     for s in skills:
         skill_counts[s.skill_name] = skill_counts.get(s.skill_name, 0) + 1
-    
-    most_common = "None"
-    if skill_counts:
-        most_common = max(skill_counts, key=skill_counts.get)
-
-    return {
-        "total_users": total_users,
-        "total_skills": total_skills,
-        "most_common_skill": most_common
-    }
+    most_common = max(skill_counts, key=skill_counts.get) if skill_counts else "None"
+    return {"total_users": total_users, "total_skills": total_skills, "most_common_skill": most_common}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

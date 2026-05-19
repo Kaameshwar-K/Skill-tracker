@@ -170,9 +170,19 @@ app = FastAPI(title="Student Skill Tracker API")
 # SECURITY FIX: Dynamically read allowed frontend URL from Render environment variables
 frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
 
+# DEFINITIVE CORS FIX FOR NETLIFY
+allowed_origins = [
+    frontend_url, 
+    frontend_url + "/", 
+    "http://localhost:5500", 
+    "http://127.0.0.1:5500",
+    "https://studentskilltracker.netlify.app",
+    "https://studentskilltracker.netlify.app/"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url, "http://localhost:5500", "http://localhost:3000"], 
+    allow_origins=allowed_origins, 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

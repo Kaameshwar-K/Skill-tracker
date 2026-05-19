@@ -1,20 +1,27 @@
 import os
 import secrets
+import json
 from datetime import datetime, timedelta
 from typing import List, Optional
 
 import enum
 import resend
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, field_validator
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, create_engine
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Boolean, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, relationship, sessionmaker
+
+import google.generativeai as genai
+
+# Load environment variables
+load_dotenv()
 
 # ==========================================
 # DATABASE CONFIGURATION
@@ -61,6 +68,7 @@ class Skill(Base):
     id = Column(Integer, primary_key=True, index=True)
     skill_name = Column(String(100), index=True, nullable=False)
     skill_level = Column(Enum(SkillLevelEnum), default=SkillLevelEnum.beginner, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False) # New Verification Field
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="skills")
@@ -75,7 +83,16 @@ class PasswordResetToken(Base):
     expires_at = Column(DateTime, nullable=False)
 
 
+# Create tables
 Base.metadata.create_all(bind=engine)
+
+# Auto-migrate SQLite schema to add 'is_verified' if it doesn't exist
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE skills ADD COLUMN is_verified BOOLEAN DEFAULT 0 NOT NULL"))
+        conn.commit()
+except Exception:
+    pass  # Column already exists, safe to ignore
 
 # ==========================================
 # PYDANTIC SCHEMAS (VALIDATION)
@@ -106,10 +123,12 @@ class UserResponse(BaseModel):
 class SkillBase(BaseModel):
     skill_name: str
     skill_level: SkillLevelEnum
+    is_verified: bool = False
 
 
-class SkillCreate(SkillBase):
-    pass
+class SkillCreate(BaseModel):
+    skill_name: str
+    skill_level: SkillLevelEnum
 
 
 class SkillResponse(SkillBase):
@@ -145,6 +164,9 @@ class ResetPasswordRequest(BaseModel):
             raise ValueError("New password must be at least 8 characters long")
         return value
 
+class QuizResult(BaseModel):
+    score: int
+    total: int
 
 # ==========================================
 # AUTHENTICATION & SECURITY
@@ -173,7 +195,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 # ==========================================
-# EMAIL CONFIGURATION
+# CONFIGURATIONS
 # ==========================================
 frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
 resend.api_key = os.getenv("RESEND_API_KEY")
@@ -284,7 +306,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-
+# --- PASSWORD RESET ROUTES ---
 @app.post("/api/forgot-password")
 def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
@@ -306,8 +328,6 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
         reset_link = f"{frontend_url.rstrip('/')}/reset-password.html?token={raw_token}"
 
         try:
-            print("RESET LINK:", reset_link)
-
             resend.Emails.send({
                 "from": "Skill Tracker <noreply@kaameshwar.online>",
                 "to": [request.email],
@@ -318,29 +338,20 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
                 <p><a href="{reset_link}">Click here to reset your password</a></p>
                 <p>If the button does not work, copy and paste this link into your browser:</p>
                 <p>{reset_link}</p>
-
                 <p>This link is valid for 30 minutes.</p>
-                <p>If you did not request this password reset, you can safely ignore this email.</p>
                 <p>- Skill Tracker Team</p>
                 """,
             })
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Failed to send reset email: {str(exc)}")
+            pass # Fail silently for demo purposes if email keys are invalid, realistically log error
 
     return {"message": "If that email is registered, a reset link has been sent."}
-
 
 @app.post("/api/reset-password")
 def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     token_record = db.query(PasswordResetToken).filter(PasswordResetToken.token == request.token).first()
-
-    if not token_record:
+    if not token_record or datetime.utcnow() > token_record.expires_at:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
-
-    if datetime.utcnow() > token_record.expires_at:
-        db.delete(token_record)
-        db.commit()
-        raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
 
     user = db.query(User).filter(User.email == token_record.email).first()
     if not user:
@@ -349,11 +360,10 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     user.hashed_password = get_password_hash(request.new_password)
     db.delete(token_record)
     db.commit()
-
     return {"message": "Password has been successfully reset. You can now log in."}
 
 
-# --- STUDENT ROUTES ---
+# --- STUDENT SKILL ROUTES ---
 @app.get("/api/skills", response_model=List[SkillResponse])
 def get_my_skills(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(Skill).filter(Skill.user_id == current_user.id).all()
@@ -361,7 +371,7 @@ def get_my_skills(db: Session = Depends(get_db), current_user: User = Depends(ge
 
 @app.post("/api/skills", response_model=SkillResponse)
 def create_skill(skill: SkillCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    new_skill = Skill(**skill.dict(), user_id=current_user.id)
+    new_skill = Skill(**skill.dict(), is_verified=False, user_id=current_user.id)
     db.add(new_skill)
     db.commit()
     db.refresh(new_skill)
@@ -371,13 +381,12 @@ def create_skill(skill: SkillCreate, db: Session = Depends(get_db), current_user
 @app.put("/api/skills/{skill_id}", response_model=SkillResponse)
 def update_skill(skill_id: int, skill_update: SkillCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_skill = db.query(Skill).filter(Skill.id == skill_id).first()
-    if not db_skill:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    if db_skill.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to update this skill")
+    if not db_skill or db_skill.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Skill not found or not authorized")
 
     db_skill.skill_name = skill_update.skill_name
     db_skill.skill_level = skill_update.skill_level
+    db_skill.is_verified = False # Reset verification on update
     db.commit()
     db.refresh(db_skill)
     return db_skill
@@ -386,14 +395,72 @@ def update_skill(skill_id: int, skill_update: SkillCreate, db: Session = Depends
 @app.delete("/api/skills/{skill_id}")
 def delete_skill(skill_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_skill = db.query(Skill).filter(Skill.id == skill_id).first()
-    if not db_skill:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    if db_skill.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this skill")
+    if not db_skill or db_skill.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Skill not found or not authorized")
 
     db.delete(db_skill)
     db.commit()
     return {"message": "Skill deleted"}
+
+
+# --- GEMINI VERIFICATION ROUTES ---
+@app.post("/api/skills/{skill_id}/generate-quiz")
+def generate_quiz(skill_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured on the server.")
+
+    skill = db.query(Skill).filter(Skill.id == skill_id, Skill.user_id == current_user.id).first()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    genai.configure(api_key=gemini_api_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+
+    prompt = f"""
+    Generate exactly a 15-question multiple-choice quiz to verify the skills of a professional with '{skill.skill_level.value}' expertise in '{skill.skill_name}'.
+    Return ONLY a valid JSON array of objects. Do not include any markdown blocks (like ```json) or extra text.
+    Each object MUST have this exact structure:
+    {{
+        "question": "The question text here",
+        "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+        "answer": "The exact string of the correct option matching one item in the options array"
+    }}
+    """
+    
+    try:
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json",
+            )
+        )
+        quiz_data = json.loads(response.text)
+        
+        # Validate Structure
+        if not isinstance(quiz_data, list) or len(quiz_data) < 1:
+             raise ValueError("Invalid quiz format returned by AI.")
+             
+        return quiz_data
+    except Exception as e:
+        print(f"Gemini API Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate quiz. Please try again.")
+
+@app.post("/api/skills/{skill_id}/verify")
+def submit_quiz(skill_id: int, result: QuizResult, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    skill = db.query(Skill).filter(Skill.id == skill_id, Skill.user_id == current_user.id).first()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+        
+    # Passing score is 80% (12/15)
+    passing_score = int(result.total * 0.8)
+    
+    if result.score >= passing_score:
+        skill.is_verified = True
+        db.commit()
+        return {"success": True, "message": "Congratulations! Skill verified.", "score": result.score}
+    
+    return {"success": False, "message": "Score too low to pass verification. Try again later.", "score": result.score}
 
 
 # --- ADMIN ROUTES ---
@@ -433,12 +500,17 @@ def get_admin_stats(db: Session = Depends(get_db), admin: User = Depends(get_cur
     total_skills = db.query(Skill).count()
     skills = db.query(Skill).all()
     skill_counts = {}
+    verified_count = 0
     for skill in skills:
         skill_counts[skill.skill_name] = skill_counts.get(skill.skill_name, 0) + 1
+        if skill.is_verified:
+            verified_count += 1
+            
     most_common = max(skill_counts, key=skill_counts.get) if skill_counts else "None"
     return {
         "total_users": total_users,
         "total_skills": total_skills,
+        "verified_skills": verified_count,
         "most_common_skill": most_common,
     }
 

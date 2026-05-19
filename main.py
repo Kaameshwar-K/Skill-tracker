@@ -176,7 +176,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 # EMAIL CONFIGURATION
 # ==========================================
 frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
-resend.api_key = os.getenv("RESEND_API_KEY", "re_YAp4jAj3_6eMeFyoRrkh91edVjtLkv85s")
+resend.api_key = os.getenv("RESEND_API_KEY")
 
 # ==========================================
 # DEPENDENCIES

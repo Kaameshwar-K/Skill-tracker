@@ -81,7 +81,7 @@ class UserResponse(BaseModel):
     email: str
     role: RoleEnum
     class Config:
-        from_attributes = True # Updated for Pydantic V2
+        orm_mode = True
 
 class SkillBase(BaseModel):
     skill_name: str
@@ -94,7 +94,7 @@ class SkillResponse(SkillBase):
     id: int
     user_id: int
     class Config:
-        from_attributes = True # Updated for Pydantic V2
+        orm_mode = True
 
 class Token(BaseModel):
     access_token: str
@@ -176,7 +176,7 @@ app = FastAPI(title="Student Skill Tracker API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # Allow all origins for testing. In prod, specify frontend URL.
-    allow_credentials=True,
+    allow_credentials=False, # CHANGED: Browsers block True when origins is "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )

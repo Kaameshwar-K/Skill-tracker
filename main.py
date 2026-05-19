@@ -303,9 +303,11 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
         db.add(reset_token)
         db.commit()
 
-        reset_link = f"{frontend_url}/reset-password.html?token={raw_token}"
+        reset_link = f"{frontend_url.rstrip('/')}/reset-password.html?token={raw_token}"
 
         try:
+            print("RESET LINK:", reset_link)
+
             resend.Emails.send({
                 "from": "Skill Tracker <noreply@kaameshwar.online>",
                 "to": [request.email],
@@ -314,6 +316,9 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
                 <p>Hello {user.username},</p>
                 <p>We received a request to reset your Skill Tracker account password.</p>
                 <p><a href="{reset_link}">Click here to reset your password</a></p>
+                <p>If the button does not work, copy and paste this link into your browser:</p>
+                <p>{reset_link}</p>
+
                 <p>This link is valid for 30 minutes.</p>
                 <p>If you did not request this password reset, you can safely ignore this email.</p>
                 <p>- Skill Tracker Team</p>

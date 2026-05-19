@@ -307,7 +307,7 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
 
         try:
             resend.Emails.send({
-                "from": "Skill Tracker <onboarding@resend.dev>",
+                "from": "Skill Tracker <noreply@kaameshwar.online>",
                 "to": [request.email],
                 "subject": "Password Reset Request - Skill Tracker",
                 "html": f"""

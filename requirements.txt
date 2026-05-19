@@ -7,4 +7,4 @@ python-jose
 python-multipart
 pymysql
 cryptography
-fastapi-mail
+resend

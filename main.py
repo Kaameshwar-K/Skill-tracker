@@ -4,11 +4,11 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import enum
+import resend
 import uvicorn
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, field_validator
@@ -176,18 +176,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 # EMAIL CONFIGURATION
 # ==========================================
 frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
-
-mail_conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("MAIL_USERNAME", ""),
-    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD", ""),
-    MAIL_FROM=os.getenv("MAIL_FROM", os.getenv("MAIL_USERNAME", "")),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
-    MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True,
-)
+resend.api_key = os.getenv("RESEND_API_KEY", "re_e8TVFNqJ_HTW7bbmC6khxQJg4dsfTa5S4")
 
 # ==========================================
 # DEPENDENCIES
@@ -297,11 +286,7 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 
 
 @app.post("/api/forgot-password")
-async def forgot_password(
-    request: ForgotPasswordRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-):
+def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
 
     if user:
@@ -320,27 +305,22 @@ async def forgot_password(
 
         reset_link = f"{frontend_url}/reset-password.html?token={raw_token}"
 
-        message = MessageSchema(
-            subject="Password Reset Request - Skill Tracker",
-            recipients=[request.email],
-            body=f"""Hello {user.username},
-
-We received a request to reset your Skill Tracker account password.
-
-Click the link below to reset your password (valid for 30 minutes):
-
-{reset_link}
-
-If you did not request a password reset, please ignore this email.
-Your password will not be changed.
-
-- Skill Tracker Team
-""",
-            subtype=MessageType.plain,
-        )
-
-        fm = FastMail(mail_conf)
-        background_tasks.add_task(fm.send_message, message)
+        try:
+            resend.Emails.send({
+                "from": "Skill Tracker <onboarding@resend.dev>",
+                "to": [request.email],
+                "subject": "Password Reset Request - Skill Tracker",
+                "html": f"""
+                <p>Hello {user.username},</p>
+                <p>We received a request to reset your Skill Tracker account password.</p>
+                <p><a href="{reset_link}">Click here to reset your password</a></p>
+                <p>This link is valid for 30 minutes.</p>
+                <p>If you did not request this password reset, you can safely ignore this email.</p>
+                <p>- Skill Tracker Team</p>
+                """,
+            })
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to send reset email: {str(exc)}")
 
     return {"message": "If that email is registered, a reset link has been sent."}
 

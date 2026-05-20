@@ -47,7 +47,7 @@
                     <div class="flex items-center gap-2">
                         <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-sm" id="userInitial">U</div>
                         <span id="navUsername" class="text-sm font-medium">Username</span>
-                        <span id="navRoleBadge" class="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">Role</span>
+                        <span id="navRoleBadge" class="text-xs px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 uppercase tracking-wide">Role</span>
                     </div>
                     <button onclick="logout()" class="text-gray-400 hover:text-white transition px-3 py-1.5 rounded-md hover:bg-gray-800 text-sm">
                         <i class="fas fa-sign-out-alt mr-1"></i> Logout
@@ -84,8 +84,9 @@
                     </div>
                     <button type="submit" class="w-full bg-primary hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition shadow-lg shadow-primary/20">Sign In</button>
                 </form>
-                <div class="mt-4 text-center text-sm text-gray-400">
-                    Don't have an account? <a href="#" onclick="switchView('registerView')" class="text-primary hover:text-indigo-400 font-medium">Create one</a>
+                <div class="mt-4 text-center text-sm flex justify-between">
+                     <a href="/reset-password.html" class="text-gray-400 hover:text-white transition">Forgot Password?</a>
+                     <span>New here? <a href="#" onclick="switchView('registerView')" class="text-primary hover:text-indigo-400 font-medium">Create one</a></span>
                 </div>
             </div>
         </div>
@@ -115,7 +116,7 @@
             </div>
         </div>
 
-        <!-- Dashboard View -->
+        <!-- Dashboard View (Student) -->
         <div id="studentDashboard" class="view-section">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
@@ -136,6 +137,66 @@
                 </div>
                 <h3 class="text-xl font-medium text-white mb-2">No skills tracked yet</h3>
                 <p class="text-gray-400 max-w-sm mx-auto">Start building your profile by adding your first skill today.</p>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard View -->
+        <div id="adminDashboard" class="view-section">
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-white mb-1"><i class="fas fa-shield-halved text-primary mr-2"></i>Admin Area</h1>
+                    <p class="text-gray-400">Platform statistics and user management.</p>
+                </div>
+                <button onclick="loadAdminDashboard()" class="w-10 h-10 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 transition flex items-center justify-center">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <!-- Admin Stats Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" id="adminStatsContainer">
+                <!-- Stats injected here via JS -->
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Users Table -->
+                <div class="bg-card rounded-2xl border border-gray-800 p-6 shadow-xl">
+                    <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-users mr-2 text-indigo-400"></i> Registered Users</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="text-xs uppercase bg-darker text-gray-300">
+                                <tr>
+                                    <th class="px-4 py-3 rounded-tl-lg font-semibold">ID</th>
+                                    <th class="px-4 py-3 font-semibold">Username</th>
+                                    <th class="px-4 py-3 font-semibold">Role</th>
+                                    <th class="px-4 py-3 rounded-tr-lg font-semibold text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUsersTableBody">
+                                <!-- Users injected here via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Skills Table -->
+                <div class="bg-card rounded-2xl border border-gray-800 p-6 shadow-xl">
+                    <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-layer-group mr-2 text-indigo-400"></i> Platform Skills</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-400">
+                            <thead class="text-xs uppercase bg-darker text-gray-300">
+                                <tr>
+                                    <th class="px-4 py-3 rounded-tl-lg font-semibold">Skill</th>
+                                    <th class="px-4 py-3 font-semibold">Level</th>
+                                    <th class="px-4 py-3 font-semibold">User ID</th>
+                                    <th class="px-4 py-3 rounded-tr-lg font-semibold text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminSkillsTableBody">
+                                <!-- Skills injected here via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -181,12 +242,6 @@
                 </div>
 
             </div>
-        </div>
-
-        <!-- Admin View -->
-        <div id="adminDashboard" class="view-section text-center py-20">
-            <h1 class="text-3xl font-bold text-white mb-2">Admin Dashboard Active</h1>
-            <p class="text-gray-400">User metrics and platform stats loaded.</p>
         </div>
 
     </main>
@@ -240,7 +295,6 @@
     </div>
 
     <script>
-        // Set this to your local or hosted API URL
         const API_URL = 'https://skill-tracker-uzka.onrender.com/api'; 
         
         let state = {
@@ -298,10 +352,23 @@
                 document.getElementById('navUserArea').classList.remove('hidden');
                 document.getElementById('navUsername').textContent = state.username;
                 document.getElementById('navRoleBadge').textContent = state.role;
+                
+                // Color code the role badge
+                const badge = document.getElementById('navRoleBadge');
+                if (state.role === 'admin') {
+                    badge.classList.remove('text-primary', 'border-primary/30', 'bg-primary/20');
+                    badge.classList.add('text-amber-400', 'border-amber-400/30', 'bg-amber-400/10');
+                }
+                
                 document.getElementById('userInitial').textContent = state.username ? state.username.charAt(0).toUpperCase() : 'U';
                 
-                if (state.role === 'admin') { switchView('adminDashboard'); } 
-                else { switchView('studentDashboard'); loadMySkills(); }
+                if (state.role === 'admin') { 
+                    switchView('adminDashboard'); 
+                    loadAdminDashboard(); 
+                } else { 
+                    switchView('studentDashboard'); 
+                    loadMySkills(); 
+                }
             } else {
                 document.getElementById('navUserArea').classList.add('hidden');
                 switchView('loginView');
@@ -341,7 +408,9 @@
             checkAuthState();
         }
 
-        // --- SKILL MANAGEMENT ---
+        // ==========================================
+        // STUDENT SKILL MANAGEMENT 
+        // ==========================================
         async function loadMySkills() {
             try {
                 state.mySkills = await apiCall('/skills');
@@ -392,7 +461,6 @@
             });
         }
 
-        // Modals & CRUD
         function openSkillModal(skillId = null) {
             const modal = document.getElementById('skillModal');
             modal.classList.remove('hidden'); modal.style.display = 'flex'; void modal.offsetWidth; modal.classList.remove('opacity-0');
@@ -426,6 +494,139 @@
         }
 
         // ==========================================
+        // ADMIN MANAGEMENT SYSTEM
+        // ==========================================
+        async function loadAdminDashboard() {
+            try {
+                const [statsData, usersData, skillsData] = await Promise.all([
+                    apiCall('/admin/stats'),
+                    apiCall('/admin/users'),
+                    apiCall('/admin/skills')
+                ]);
+                
+                renderAdminStats(statsData);
+                renderAdminUsers(usersData);
+                renderAdminSkills(skillsData);
+            } catch (error) {
+                // Ignore API specific toast here as apiCall handles showing it
+            }
+        }
+
+        function renderAdminStats(stats) {
+            const container = document.getElementById('adminStatsContainer');
+            container.innerHTML = `
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Total Users</p>
+                        <h3 class="text-3xl font-bold text-white">${stats.total_users}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xl"><i class="fas fa-users"></i></div>
+                </div>
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Total Skills</p>
+                        <h3 class="text-3xl font-bold text-white">${stats.total_skills}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl"><i class="fas fa-layer-group"></i></div>
+                </div>
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Verified Skills</p>
+                        <h3 class="text-3xl font-bold text-blue-400">${stats.verified_skills}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl"><i class="fas fa-certificate"></i></div>
+                </div>
+                <div class="bg-card p-6 rounded-2xl border border-gray-800 flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">Top Skill</p>
+                        <h3 class="text-lg font-bold text-white mt-1 truncate capitalize">${stats.most_common_skill}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl"><i class="fas fa-fire"></i></div>
+                </div>
+            `;
+        }
+
+        function renderAdminUsers(users) {
+            const tbody = document.getElementById('adminUsersTableBody');
+            if (users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No users found.</td></tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = users.map(u => `
+                <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 transition">
+                    <td class="px-4 py-3 text-gray-500 font-mono">#${u.id}</td>
+                    <td class="px-4 py-3 font-medium text-gray-200">
+                        <div class="flex flex-col">
+                            <span>${u.username}</span>
+                            <span class="text-xs text-gray-500">${u.email}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="px-2.5 py-1 rounded-md text-xs font-medium ${u.role === 'admin' ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' : 'bg-gray-700 text-gray-300'}">
+                            ${u.role}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        ${u.role !== 'admin' ? 
+                            `<button onclick="deleteUserByAdmin(${u.id})" class="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-2 rounded transition" title="Delete User">
+                                <i class="fas fa-trash"></i>
+                            </button>` 
+                            : '<span class="text-gray-600 text-xs uppercase px-2">Protected</span>'
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderAdminSkills(skills) {
+            const tbody = document.getElementById('adminSkillsTableBody');
+            if (skills.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No skills tracked yet.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = skills.map(s => {
+                const colors = { 'Beginner': 'text-blue-400', 'Intermediate': 'text-yellow-400', 'Advanced': 'text-emerald-400' };
+                return `
+                <tr class="border-b border-gray-800/50 hover:bg-gray-800/30 transition">
+                    <td class="px-4 py-3 font-medium text-gray-200 capitalize">
+                        ${s.skill_name} 
+                        ${s.is_verified ? '<i class="fas fa-certificate text-blue-400 ml-1 text-xs" title="Verified"></i>' : ''}
+                    </td>
+                    <td class="px-4 py-3 text-xs uppercase font-semibold ${colors[s.skill_level]}">${s.skill_level}</td>
+                    <td class="px-4 py-3 text-gray-400 font-mono text-sm">User #${s.user_id}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="deleteSkillByAdmin(${s.id})" class="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-2 rounded transition" title="Delete Skill">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        async function deleteUserByAdmin(id) {
+            if(confirm('Are you sure you want to delete this user? All their skills will also be completely removed.')) {
+                try {
+                    await apiCall(`/admin/users/${id}`, 'DELETE');
+                    showToast('User deleted successfully');
+                    loadAdminDashboard(); // Refresh
+                } catch(e) {}
+            }
+        }
+
+        async function deleteSkillByAdmin(id) {
+            if(confirm('Are you sure you want to delete this specific skill?')) {
+                try {
+                    await apiCall(`/admin/skills/${id}`, 'DELETE');
+                    showToast('Skill deleted successfully');
+                    loadAdminDashboard(); // Refresh
+                } catch(e) {}
+            }
+        }
+
+
+        // ==========================================
         // QUIZ VERIFICATION SYSTEM 
         // ==========================================
         let quizState = { activeSkillId: null, questions: [], currentIndex: 0, score: 0, timer: null, timeLimit: 15 };
@@ -439,7 +640,6 @@
         async function startVerification(skillId, levelName) {
             quizState = { activeSkillId: skillId, questions: [], currentIndex: 0, score: 0, timer: null, timeLimit: 15 };
             
-            // Fixed the timer duration based on your request
             if (levelName === 'Beginner') quizState.timeLimit = 15;
             else if (levelName === 'Intermediate') quizState.timeLimit = 20;
             else if (levelName === 'Advanced') quizState.timeLimit = 25;

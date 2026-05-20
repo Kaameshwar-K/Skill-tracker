@@ -20,9 +20,6 @@ from sqlalchemy.orm import Session, relationship, sessionmaker
 
 import google.generativeai as genai
 
-# 1. HERE IS THE IMPORT: We import the router from our new health.py file
-from health import router as health_router
-
 # Load environment variables
 load_dotenv()
 
@@ -184,12 +181,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 # ==========================================
-# CONFIGURATIONS
-# ==========================================
-frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
-resend.api_key = os.getenv("RESEND_API_KEY")
-
-# ==========================================
 # DEPENDENCIES
 # ==========================================
 def get_db():
@@ -198,7 +189,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -228,8 +218,11 @@ def get_current_admin(current_user: User = Depends(get_current_user)):
 
 
 # ==========================================
-# FASTAPI APP & ROUTES
+# CONFIGURATIONS & FASTAPI APP
 # ==========================================
+frontend_url = os.getenv("FRONTEND_URL", "http://127.0.0.1:5500")
+resend.api_key = os.getenv("RESEND_API_KEY")
+
 app = FastAPI(title="Student Skill Tracker API")
 
 allowed_origins = [
@@ -249,8 +242,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. HERE IS THE PLUG: This connects the health.py file to your app!
-app.include_router(health_router)
+
+# ==========================================
+# ROUTES
+# ==========================================
+
+# --- HEALTH CHECK ROUTE (KEEPS RENDER & AIVEN AWAKE) ---
+@app.get("/api/health")
+def health_check(db: Session = Depends(get_db)):
+    """Lightweight endpoint for uptime monitoring and keeping the service + DB awake."""
+    try:
+        # Send a tiny 'ping' query to Aiven to reset its sleep timer
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"disconnected"
+        
+    return {
+        "status": "ok", 
+        "database": db_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 # --- AUTH ROUTES ---

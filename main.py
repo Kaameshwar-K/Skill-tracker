@@ -20,6 +20,9 @@ from sqlalchemy.orm import Session, relationship, sessionmaker
 
 import google.generativeai as genai
 
+# Import the newly separated health router
+from health import router as health_router
+
 # Load environment variables
 load_dotenv()
 
@@ -260,6 +263,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- REGISTER EXTERNAL ROUTERS ---
+app.include_router(health_router)
+
 
 # --- AUTH ROUTES ---
 @app.post("/api/register", response_model=UserResponse)
@@ -305,6 +311,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @app.get("/api/users/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
 
 # --- PASSWORD RESET ROUTES ---
 @app.post("/api/forgot-password")

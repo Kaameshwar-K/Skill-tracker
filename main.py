@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, relationship, sessionmaker
 
 import google.generativeai as genai
 
-# Import the newly separated health router
+# 1. HERE IS THE IMPORT: We import the router from our new health.py file
 from health import router as health_router
 
 # Load environment variables
@@ -46,12 +46,10 @@ class RoleEnum(str, enum.Enum):
     student = "student"
     admin = "admin"
 
-
 class SkillLevelEnum(str, enum.Enum):
     beginner = "Beginner"
     intermediate = "Intermediate"
     advanced = "Advanced"
-
 
 class User(Base):
     __tablename__ = "users"
@@ -64,18 +62,16 @@ class User(Base):
 
     skills = relationship("Skill", back_populates="owner", cascade="all, delete-orphan")
 
-
 class Skill(Base):
     __tablename__ = "skills"
 
     id = Column(Integer, primary_key=True, index=True)
     skill_name = Column(String(100), index=True, nullable=False)
     skill_level = Column(Enum(SkillLevelEnum), default=SkillLevelEnum.beginner, nullable=False)
-    is_verified = Column(Boolean, default=False, nullable=False) # New Verification Field
+    is_verified = Column(Boolean, default=False, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="skills")
-
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
@@ -95,7 +91,7 @@ try:
         conn.execute(text("ALTER TABLE skills ADD COLUMN is_verified BOOLEAN DEFAULT 0 NOT NULL"))
         conn.commit()
 except Exception:
-    pass  # Column already exists, safe to ignore
+    pass
 
 # ==========================================
 # PYDANTIC SCHEMAS (VALIDATION)
@@ -112,7 +108,6 @@ class UserCreate(BaseModel):
             raise ValueError("Password must be at least 8 characters long")
         return value
 
-
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -122,17 +117,14 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class SkillBase(BaseModel):
     skill_name: str
     skill_level: SkillLevelEnum
     is_verified: bool = False
 
-
 class SkillCreate(BaseModel):
     skill_name: str
     skill_level: SkillLevelEnum
-
 
 class SkillResponse(SkillBase):
     id: int
@@ -141,20 +133,16 @@ class SkillResponse(SkillBase):
     class Config:
         from_attributes = True
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
 
-
 class TokenData(BaseModel):
     username: Optional[str] = None
 
-
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
-
 
 class ResetPasswordRequest(BaseModel):
     token: str
@@ -185,10 +173,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
-
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -263,7 +249,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- REGISTER EXTERNAL ROUTERS ---
+# 2. HERE IS THE PLUG: This connects the health.py file to your app!
 app.include_router(health_router)
 
 
@@ -350,7 +336,7 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
                 """,
             })
         except Exception as exc:
-            pass # Fail silently for demo purposes if email keys are invalid, realistically log error
+            pass 
 
     return {"message": "If that email is registered, a reset link has been sent."}
 
@@ -393,7 +379,7 @@ def update_skill(skill_id: int, skill_update: SkillCreate, db: Session = Depends
 
     db_skill.skill_name = skill_update.skill_name
     db_skill.skill_level = skill_update.skill_level
-    db_skill.is_verified = False # Reset verification on update
+    db_skill.is_verified = False
     db.commit()
     db.refresh(db_skill)
     return db_skill
@@ -444,7 +430,6 @@ def generate_quiz(skill_id: int, db: Session = Depends(get_db), current_user: Us
         )
         quiz_data = json.loads(response.text)
         
-        # Validate Structure
         if not isinstance(quiz_data, list) or len(quiz_data) < 1:
              raise ValueError("Invalid quiz format returned by AI.")
              
@@ -459,7 +444,6 @@ def submit_quiz(skill_id: int, result: QuizResult, db: Session = Depends(get_db)
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
         
-    # Passing score is 70% (11/15)
     passing_score = int(result.total * 0.7)
     
     if result.score >= passing_score:
